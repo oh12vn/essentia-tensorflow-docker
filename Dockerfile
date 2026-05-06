@@ -1,5 +1,5 @@
 ARG DEBIAN_VERSION=bookworm
-ARG ESSENTIA_COMMIT=HEAD
+ARG ESSENTIA_COMMIT=4ec93bb757d639217a535452bf0b3142ae5e6387
 ARG ENABLE_VAMP=1
 ARG ENABLE_TENSORFLOW=1
 ARG TENSORFLOW_USE_GPU=0
@@ -26,6 +26,7 @@ RUN apt-get update && \
     libchromaprint-dev \
     python3 \
     python3-dev \
+    python3-numpy \
     git \
     ca-certificates \
     wget \
@@ -80,7 +81,11 @@ RUN git clone --depth 1 https://github.com/MTG/essentia.git /opt/essentia && \
 WORKDIR /opt/essentia
 
 ARG ENABLE_VAMP
-RUN python3 waf configure $( [ "$ENABLE_VAMP" = "1" ] && echo "--with-vamp" ) $( [ "$ENABLE_TENSORFLOW" = "1" ] && echo "--with-tensorflow" ) && \
+RUN python3 waf configure \
+    $( [ "$ENABLE_VAMP" = "1" ] && echo "--with-vamp" ) \
+    $( [ "$ENABLE_TENSORFLOW" = "1" ] && echo "--with-tensorflow" ) \
+    --with-python \
+    --pythondir=$(python3 -c "import site; print(site.getsitepackages()[0])") && \
     python3 waf && \
     python3 waf install
 
@@ -88,9 +93,21 @@ RUN python3 waf configure $( [ "$ENABLE_VAMP" = "1" ] && echo "--with-vamp" ) $(
 FROM debian:${DEBIAN_VERSION}-slim
 ENV DEBIAN_FRONTEND=noninteractive
 
-COPY --from=build /usr/local/lib /usr/local/lib
-COPY --from=build /usr/local/include /usr/local/include
-COPY --from=build /usr/lib /usr/lib
-COPY --from=build /usr/include /usr/include
-COPY --from=build /usr/share/pkgconfig /usr/share/pkgconfig
-COPY --from=build /usr/local/lib/pkgconfig /usr/local/lib/pkgconfig
+# Install Python runtime and FFmpeg runtime libs
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3 python3-numpy python3-six ffmpeg \
+        libfftw3-single3 \
+        libtag1v5 \
+        libyaml-0-2 \
+        python-is-python3 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy Essentia C++ libraries from build stage (libessentia.so, etc.)
+COPY --from=build /usr/local/lib /usr/local/lib/
+
+# Copy Essentia Python package from build stage
+# waf install with system python3-dev puts it in /usr/lib/python3/dist-packages/
+COPY --from=build /usr/lib/python3*/dist-packages/essentia* /usr/lib/python3/dist-packages/
+
+# Ensure shared library cache is up to date (includes TF libs and libessentia.so)
+RUN ldconfig
