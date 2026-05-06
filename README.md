@@ -65,7 +65,7 @@ docker build -t essentia:latest .
 For TensorFlow builds:
 
 ```bash
-docker build -t essentia:tensorflow --build-arg ENABLE_TENSORFLOW=1 --build-arg TENSORFLOW_USE_GPU=0 .
+docker build --no-cache -t essentia-tensorflow:4ec93bb --build-arg ENABLE_TENSORFLOW=1 --build-arg TENSORFLOW_USE_GPU=0 .
 ```
 
 ## Contributing
