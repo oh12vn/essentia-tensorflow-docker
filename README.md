@@ -68,6 +68,13 @@ For TensorFlow builds:
 docker build --no-cache -t essentia-tensorflow:4ec93bb --build-arg ENABLE_TENSORFLOW=1 --build-arg TENSORFLOW_USE_GPU=0 .
 ```
 
+After you build successfully, check the build image if everything ran correctly
+
+```bash
+docker run --rm -it essentia-tensorflow:4ec93bb bash
+python3 -c "from essentia.standard import TensorflowPredictMusiCNN, TensorflowPredict2D; print('OK everything works')"
+```
+
 ## Contributing
 
 Feel free to open issues or submit pull requests for improvements, new features, or bug fixes!
