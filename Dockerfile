@@ -69,8 +69,8 @@ ARG TENSORFLOW_USE_GPU
 ARG TENSORFLOW_VERSION
 COPY install_tensorflow.sh /opt/install_tensorflow.sh
 RUN if [ "$ENABLE_TENSORFLOW" = "1" ]; then \
-    bash /opt/install_tensorflow.sh "${TENSORFLOW_VERSION}" "${TENSORFLOW_USE_GPU}"; \
-    fi
+   bash /opt/install_tensorflow.sh "${TENSORFLOW_VERSION}" "${TENSORFLOW_USE_GPU}"; \
+   fi
 
 ARG ESSENTIA_COMMIT
 RUN git clone --depth 1 https://github.com/MTG/essentia.git /opt/essentia && \
@@ -89,6 +89,19 @@ RUN python3 waf configure \
     python3 waf && \
     python3 waf install
 
+# ---- slim build artifacts before copying to runtime ----
+# Strip debug symbols from shared libs (saves 200-400 MB on TF libs alone)
+RUN find /usr/local/lib -name '*.so*' -exec strip --strip-unneeded {} \; && \
+    # Remove static libraries, headers, and build artifacts not needed at runtime
+    find /usr/local/lib -name '*.a' -delete && \
+    find /usr/local/lib -name '*.la' -delete && \
+    find /usr/local -name '*.h' -delete && \
+    find /usr/local -name '*.hpp' -delete && \
+    rm -rf /usr/local/share/pkgconfig && \
+    rm -rf /usr/local/include && \
+    rm -rf /opt/essentia /opt/libtensorflow* /opt/install_tensorflow.sh && \
+    rm -rf /root/.cache/pip 2>/dev/null; true
+
 # ---- main stage ---------------------------------------------------------
 FROM debian:${DEBIAN_VERSION}-slim
 ENV DEBIAN_FRONTEND=noninteractive
@@ -100,7 +113,10 @@ RUN apt-get update && \
         libtag1v5 \
         libyaml-0-2 \
         python-is-python3 && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    # Clean up apt cache and docs to save space
+    find /usr/share/doc -depth -type f ! -name 'copyright' -delete && \
+    find /usr/share/man -type f -delete 2>/dev/null; true
 
 # Copy Essentia C++ libraries from build stage (libessentia.so, etc.)
 COPY --from=build /usr/local/lib /usr/local/lib/
